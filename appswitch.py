@@ -63,8 +63,18 @@ def getRequestedWindowId(windowName, desktopNo):
         return windowIdAsString
 
 
+def printUsage():
+    print("Usage:")
+    print("appswitch appname [appcmd]")
+
+
+# TODO Use proper command line arg handling
+if(len(sys.argv) < 2 or len(sys.argv) > 3):
+    printUsage()
+    sys.exit(0)
+
 desktopNo = getActiveDesktop()
-# TODO: check length of sys.argv
+
 requestedWindowName = sys.argv[1]
 winID = getRequestedWindowId(requestedWindowName, desktopNo)
 
