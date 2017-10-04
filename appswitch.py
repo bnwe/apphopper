@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
 
+# TODOs:
+# - CLI arg for program to launch if window not found
+
+# Ideas:
+# - let user chose, whether scope is current desktop or all
+# - If found window is already current, then toggle to next
+#   - wmctrl doesnt know current window. use: CURRENTAPP=` xprop -root 32x '\t$0' _NET_ACTIVE_WINDOW | cut -f 2 | awk ' { gsub("0x" , "0x0" ); print $0  } '`
+#   - maybe use other programs like xprop: https://www.linuxquestions.org/questions/showthread.php?p=5673363#post5673363
+#   - inform about errors via desktop notification
+
 import subprocess
 import sys
 import re
@@ -66,4 +76,3 @@ completed = subprocess.run(
 # returnCode = completed.returncode  # TODO: Handle errors
 windowsStdOut = completed.stdout
 print(windowsStdOut)
-
