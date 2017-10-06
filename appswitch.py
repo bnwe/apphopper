@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-# TODOs:
-# - CLI arg for program to launch if window not found
-
 # Ideas:
 # - let user chose, whether scope is current desktop or all
 # - If found window is already current, then toggle to next
@@ -56,7 +53,7 @@ def getRequestedWindowId(windowName, desktopNo):
     if matchedWindowObjects is None:
         print("ERROR: The window " + windowName +
               " could not be uniquely identified on desktop " + desktopNo)
-        return
+        return None
     else:
         windowIdAsString = matchedWindowObjects.group(1)
         print("window id:" + windowIdAsString)
@@ -77,6 +74,13 @@ desktopNo = getActiveDesktop()
 
 requestedWindowName = sys.argv[1]
 winID = getRequestedWindowId(requestedWindowName, desktopNo)
+
+if winID is None and (len(sys.argv) == 3):
+    completed = subprocess.run(
+        [sys.argv[2]],
+        stdout=subprocess.PIPE,
+        universal_newlines=True)
+    sys.exit()
 
 print("Now switching to winid " + winID)
 completed = subprocess.run(
