@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# TODOs
+# Desktop can be negative! e.g.: 0x04800010 -1 Navigator.Firefox     bnwe-laptop WhatsApp - Mozilla Firefox
 # Ideas:
 # - let user chose, whether scope is current desktop or all
 # - If found window is already current, then toggle to next
