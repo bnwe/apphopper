@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 
-def getActiveDesktop():
+def get_active_desktop_id():
     # Get desktops from wmctrl
     completed = subprocess.run(
         ["wmctrl", "-d"], stdout=subprocess.PIPE, universal_newlines=True)
@@ -18,17 +18,17 @@ def getActiveDesktop():
     print(desktopStdOut)
 
     # Parse list of desktops for current desktop
-    findDesktopRegex = re.compile(r"(\d)\s*\*")
+    active_desktop_regex = re.compile(r"(\d)\s*\*")
 
-    matchedDesktopObjects = findDesktopRegex.search(desktopStdOut)
-    # numFoundActiveDesktops = len(matchedDesktopObjects.groups())
-    # TODO: Handle errors (should be 1)
-    activeDesktopAsString = matchedDesktopObjects.group(1)
-    print("Active desktop is: " + activeDesktopAsString)
-    return activeDesktopAsString
+    matched_objects = active_desktop_regex.search(desktopStdOut)
+    # numFoundActiveDesktops = len(matched_objects.groups())
+    # TODO: Handle errors (numFoundActiveDesktops should be 1)
+    active_desktop_id = matched_objects.group(1)
+    print("Active desktop is: " + active_desktop_id)
+    return active_desktop_id
 
 
-def getRequestedWindowId(windowName, desktopNo):
+def get_window_id(window_name, desktop_id):
     print()
     # Get windows from wmctrl
     completed = subprocess.run(
@@ -39,47 +39,48 @@ def getRequestedWindowId(windowName, desktopNo):
     windowsStdOut = completed.stdout
     print(windowsStdOut)
 
-    regexString = r"(0x[\w]+)\s*" + desktopNo + "\s" + windowName
-    print("regex string for finding " + windowName + ": " + regexString)
-    findWindowRegex = re.compile(regexString, re.IGNORECASE)
+    window_regex_string = r"(0x[\w]+)\s*" + desktop_id + "\s" + window_name
+    print("regex string for finding " + window_name + ": " + window_regex_string)
+    window_regex = re.compile(window_regex_string, re.IGNORECASE)
 
-    matchedWindowObjects = findWindowRegex.search(windowsStdOut)
-    if matchedWindowObjects is None:
-        print("ERROR: The window " + windowName +
-              " could not be uniquely identified on desktop " + desktopNo)
+    matched_objects = window_regex.search(windowsStdOut)
+    if matched_objects is None:
+        print("ERROR: The window " + window_name +
+              " could not be uniquely identified on desktop " + desktop_id)
         return None
     else:
-        windowIdAsString = matchedWindowObjects.group(1)
-        print("window id:" + windowIdAsString)
-        return windowIdAsString
+        window_id = matched_objects.group(1)
+        print("window id:" + window_id)
+        return window_id
 
 
-def printUsage():
+def print_cli_usage():
     print("Usage:")
     print("appswitch appname [appcmd]")
 
 
-if (len(sys.argv) < 2 or len(sys.argv) > 3):
-    printUsage()
-    sys.exit(0)
+if __name__ == '__main__':
+    if (len(sys.argv) < 2 or len(sys.argv) > 3):
+        print_cli_usage()
+        sys.exit(0)
 
-desktopNo = getActiveDesktop()
+    active_desktop_id = get_active_desktop_id()
 
-requestedWindowName = sys.argv[1]
-winID = getRequestedWindowId(requestedWindowName, desktopNo)
+    requested_window_name = sys.argv[1]
+    requested_window_id = get_window_id(requested_window_name, active_desktop_id)
 
-if winID is None and (len(sys.argv) == 3):
+    if requested_window_id is None and (len(sys.argv) == 3):
+        completed = subprocess.run(
+            [sys.argv[2]],
+            stdout=subprocess.PIPE,
+            universal_newlines=True)
+        sys.exit()
+
+    print("Now switching to winid " + requested_window_id)
     completed = subprocess.run(
-        [sys.argv[2]],
+        ["wmctrl", "-i", "-a", requested_window_id],
         stdout=subprocess.PIPE,
         universal_newlines=True)
-    sys.exit()
-
-print("Now switching to winid " + winID)
-completed = subprocess.run(
-    ["wmctrl", "-i", "-a", winID],
-    stdout=subprocess.PIPE,
-    universal_newlines=True)
-# returnCode = completed.returncode  # TODO: Handle errors
-windowsStdOut = completed.stdout
-print(windowsStdOut)
+    # returnCode = completed.returncode  # TODO: Handle errors
+    windowsStdOut = completed.stdout
+    print(windowsStdOut)
