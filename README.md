@@ -2,6 +2,8 @@
 
 ## Dependencies
 wmctrl
+xdotool
+
 ## What's this?
 A Python script that will set the currently focused windows to a specific window. Optionally the corresponding app can be opened in case the window is not found.
 

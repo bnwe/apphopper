@@ -5,6 +5,38 @@ import re
 import subprocess
 import sys
 
+# Selects the first window id from the list that is not the active window's id
+def choose_window_id(ids):
+    active_win_id = get_active_window_id()
+
+    choose_next_id = False
+    for id in ids:
+        # Previous id was the current one
+        if choose_next_id:
+            print('chosen id is: ' + id)
+            return id
+
+        # convert to decimal, because hex representation is not unique (leading zeros)
+        id_decimal = int(id, base=16)
+        active_win_id_decimal = int(active_win_id, base=16)
+
+        if id_decimal == active_win_id_decimal:
+            choose_next_id = True
+            print('active is: ' + active_win_id)
+
+    # In case the last one in the last was the current one
+    return ids[0]
+
+
+# Gets the id (hex) of the currently active window
+def get_active_window_id():
+    completed = subprocess.run(
+        ["xdotool", "getactivewindow"], stdout=subprocess.PIPE, universal_newlines=True)
+
+    id_hex = hex(int(completed.stdout))
+    print("id of active window: " + id_hex)
+    return id_hex
+
 
 def get_active_desktop_id():
     # Get desktops from wmctrl
@@ -28,7 +60,8 @@ def get_active_desktop_id():
     return active_desktop_id
 
 
-def get_window_id(window_name, desktop_id):
+# Returns the IDs of all windows found matching the name on this desktop
+def get_window_ids(window_name, desktop_id):
     print()
     # Get windows from wmctrl
     completed = subprocess.run(
@@ -51,7 +84,11 @@ def get_window_id(window_name, desktop_id):
     else:
         window_id = matched_objects.group(1)
         print("window id:" + window_id)
-        return window_id
+
+        matched_ids = window_regex.findall(windowsStdOut)
+        print("matched IDs: ")
+        print(matched_ids)
+        return matched_ids
 
 
 def print_cli_usage():
@@ -67,18 +104,26 @@ if __name__ == '__main__':
     active_desktop_id = get_active_desktop_id()
 
     requested_window_name = sys.argv[1]
-    requested_window_id = get_window_id(requested_window_name, active_desktop_id)
+    requested_window_ids = get_window_ids(requested_window_name, active_desktop_id)
 
-    if requested_window_id is None and (len(sys.argv) == 3):
+    # app is not open, so run command if given
+    if requested_window_ids is None and (len(sys.argv) == 3):
         completed = subprocess.run(
             [sys.argv[2]],
             stdout=subprocess.PIPE,
             universal_newlines=True)
         sys.exit()
 
-    print("Now switching to winid " + requested_window_id)
+    if(len(requested_window_ids) == 1):
+        target_id = requested_window_ids[0]
+        print("Only one ID found: " + target_id)
+    else:
+        target_id = choose_window_id(requested_window_ids)
+        print("Found " + str(len(requested_window_ids)) + " IDs. Target: " + target_id)
+
+    print("Now switching to winid " + target_id)
     completed = subprocess.run(
-        ["wmctrl", "-i", "-a", requested_window_id],
+        ["wmctrl", "-i", "-a", target_id],
         stdout=subprocess.PIPE,
         universal_newlines=True)
     # returnCode = completed.returncode  # TODO: Handle errors
