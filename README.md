@@ -1,16 +1,62 @@
-# App switching script for linux desktops
+# Apphopper
+
+Apphopper is a "Run or Raise" utility for Linux desktops. It streamlines your workflow by combining application launching and window switching into a single command. 
+
+### How it works:
+1.  **Run**: If the application is not running, Apphopper will launch it.
+2.  **Raise**: If the application is running but not focused, Apphopper will bring its window to the foreground.
+3.  **Cycle**: If a window of the application is already focused, Apphopper will cycle to the next window of that same application (if multiple windows are open on the current desktop).
 
 ## Dependencies
-wmctrl
-xdotool
 
-## What's this?
-A Python script that will set the currently focused windows to a specific window. Optionally the corresponding app can be opened in case the window is not found.
+- `wmctrl`
+- `xdotool`
+
+On Debian/Ubuntu-based systems, you can install these with:
+```bash
+sudo apt install wmctrl xdotool
+```
+
+## Installation
+
+Simply download `apphopper.py` and make it executable:
+
+```bash
+chmod +x apphopper.py
+```
+
+You can then move it to a directory in your PATH, such as `~/bin` or `/usr/local/bin`.
 
 ## Usage
-To set a keyboard shortcut to an app like firefox:
 
-1. Place the apphopper dir into e.g. `~/bin`
-2. Open the app then run in terminal: `wmctrl -l -x`
-3. Find the app in the resulting list and copy the name, e.g. `Navigator.firefox`
-4. Create a system shortcut (in Ubuntu Mate use the "Keyboard Shortcuts" App or use gsettings) which will call `apphopper.py Navigator.firefox`
+### Command Line
+
+```bash
+apphopper <window_class> [launch_command] [-v]
+```
+
+- `window_class`: The class of the window to find (e.g., `Navigator.firefox`, `code.Code`).
+- `launch_command`: (Optional) The command to run if no windows are found.
+- `-v`, `--verbose`: Enable verbose logging for debugging.
+
+### Finding the Window Class
+
+To find the correct window class to use:
+1. Open the application you want to target.
+2. Run `wmctrl -l -x` in your terminal.
+3. Look for your application in the list. The third column contains the class name (e.g., `Navigator.firefox`).
+
+### Setting up a Keyboard Shortcut
+
+For the best experience, bind Apphopper to a keyboard shortcut:
+
+1. Open your desktop's keyboard shortcut settings (e.g., "Keyboard Shortcuts" in Ubuntu/GNOME).
+2. Create a new custom shortcut.
+3. Set the command to: `apphopper Navigator.firefox firefox`
+4. Assign a key combination (e.g., `Super+F`).
+
+Now, pressing `Super+F` will focus Firefox if it's open (cycling through multiple windows if applicable) or launch it if it's closed.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

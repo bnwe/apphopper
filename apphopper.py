@@ -1,131 +1,229 @@
 #!/usr/bin/env python3
 
-
+import argparse
+import logging
 import re
 import subprocess
 import sys
+from typing import List, Optional
 
-# Selects the first window id from the list that is not the active window's id
-def choose_window_id(ids):
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+
+def get_active_window_id() -> str:
+    """
+    Gets the hex ID of the currently active window using xdotool.
+
+    Returns:
+        str: The window ID in hexadecimal format (e.g., '0x1234567').
+    
+    Raises:
+        RuntimeError: If xdotool fails or returns unexpected output.
+    """
+    try:
+        completed = subprocess.run(
+            ["xdotool", "getactivewindow"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=True
+        )
+        # xdotool returns decimal, convert to hex for consistency with wmctrl
+        id_hex = hex(int(completed.stdout.strip()))
+        logger.debug(f"Active window ID: {id_hex}")
+        return id_hex
+    except (subprocess.CalledProcessError, ValueError) as e:
+        logger.error(f"Failed to get active window ID: {e}")
+        return "0x0"
+
+
+def choose_window_id(ids: List[str]) -> str:
+    """
+    Selects the next window ID to focus based on the currently active window.
+    Implements a cycling behavior.
+
+    Args:
+        ids: A list of candidate window IDs (hex strings).
+
+    Returns:
+        str: The selected window ID.
+    """
+    if not ids:
+        return ""
+
     active_win_id = get_active_window_id()
 
-    choose_next_id = False
-    for id in ids:
-        # Previous id was the current one
-        if choose_next_id:
-            print('chosen id is: ' + id)
-            return id
-
-        # convert to decimal, because hex representation is not unique (leading zeros)
-        id_decimal = int(id, base=16)
+    # Convert to decimal for robust comparison (handles leading zeros in hex)
+    try:
         active_win_id_decimal = int(active_win_id, base=16)
+    except ValueError:
+        return ids[0]
 
-        if id_decimal == active_win_id_decimal:
-            choose_next_id = True
-            print('active is: ' + active_win_id)
+    choose_next_id = False
+    for window_id in ids:
+        if choose_next_id:
+            logger.debug(f"Cycling to next window ID: {window_id}")
+            return window_id
 
-    # In case the last one in the last was the current one
+        try:
+            id_decimal = int(window_id, base=16)
+            if id_decimal == active_win_id_decimal:
+                choose_next_id = True
+        except ValueError:
+            continue
+
+    # If the active window was the last in the list, or not found, return the first one
     return ids[0]
 
 
-# Gets the id (hex) of the currently active window
-def get_active_window_id():
-    completed = subprocess.run(
-        ["xdotool", "getactivewindow"], stdout=subprocess.PIPE, universal_newlines=True)
+def get_active_desktop_id() -> str:
+    """
+    Gets the ID of the currently active desktop using wmctrl.
 
-    id_hex = hex(int(completed.stdout))
-    print("id of active window: " + id_hex)
-    return id_hex
+    Returns:
+        str: The desktop index as a string.
+    
+    Raises:
+        RuntimeError: If wmctrl fails or no active desktop is found.
+    """
+    try:
+        completed = subprocess.run(
+            ["wmctrl", "-d"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=True
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get desktops: {e}")
+        sys.exit(1)
+
+    # Parse list of desktops for current desktop (marked with '*')
+    active_desktop_regex = re.compile(r"^(\d+)\s*\*")
+    for line in completed.stdout.splitlines():
+        match = active_desktop_regex.search(line)
+        if match:
+            desktop_id = match.group(1)
+            logger.debug(f"Active desktop ID: {desktop_id}")
+            return desktop_id
+
+    logger.error("Could not identify the active desktop.")
+    sys.exit(1)
 
 
-def get_active_desktop_id():
-    # Get desktops from wmctrl
-    completed = subprocess.run(
-        ["wmctrl", "-d"], stdout=subprocess.PIPE, universal_newlines=True)
+def get_window_ids(window_name: str, desktop_id: str) -> List[str]:
+    """
+    Returns the IDs of all windows matching the name on the specified desktop.
 
-    # returnCode = completed.returncode  # TODO: Handle errors
+    Args:
+        window_name: Regex pattern or partial string to match against window class.
+        desktop_id: The ID of the desktop to search on.
 
-    desktopStdOut = completed.stdout
-    print("Output of wmctrl command:")
-    print(desktopStdOut)
+    Returns:
+        List[str]: A list of matching window IDs.
+    """
+    try:
+        completed = subprocess.run(
+            ["wmctrl", "-l", "-x"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=True
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to list windows: {e}")
+        return []
 
-    # Parse list of desktops for current desktop
-    active_desktop_regex = re.compile(r"(\d)\s*\*")
-
-    matched_objects = active_desktop_regex.search(desktopStdOut)
-    # numFoundActiveDesktops = len(matched_objects.groups())
-    # TODO: Handle errors (numFoundActiveDesktops should be 1)
-    active_desktop_id = matched_objects.group(1)
-    print("Active desktop is: " + active_desktop_id)
-    return active_desktop_id
-
-
-# Returns the IDs of all windows found matching the name on this desktop
-def get_window_ids(window_name, desktop_id):
-    print()
-    # Get windows from wmctrl
-    completed = subprocess.run(
-        ["wmctrl", "-l", "-x"],
-        stdout=subprocess.PIPE,
-        universal_newlines=True)
-    # returnCode = completed.returncode  # TODO: Handle errors
-    windowsStdOut = completed.stdout
-    print(windowsStdOut)
-
-    window_regex_string = r"(0x[\w]+)\s*" + desktop_id + "\s" + window_name
-    print("regex string for finding " + window_name + ": " + window_regex_string)
+    # regex to match: ID  Desktop  Class  Host  Title
+    # We look for the ID and ensure it's on the right desktop and matches the class
+    window_regex_string = rf"^(0x[\da-fA-F]+)\s+{desktop_id}\s+{window_name}"
     window_regex = re.compile(window_regex_string, re.IGNORECASE)
 
-    matched_objects = window_regex.search(windowsStdOut)
-    if matched_objects is None:
-        print("ERROR: The window " + window_name +
-              " could not be uniquely identified on desktop " + desktop_id)
-        return None
-    else:
-        window_id = matched_objects.group(1)
-        print("window id:" + window_id)
+    matched_ids = []
+    for line in completed.stdout.splitlines():
+        match = window_regex.search(line)
+        if match:
+            matched_ids.append(match.group(1))
 
-        matched_ids = window_regex.findall(windowsStdOut)
-        print("matched IDs: ")
-        print(matched_ids)
-        return matched_ids
+    logger.debug(f"Found {len(matched_ids)} windows matching '{window_name}'")
+    return matched_ids
 
 
-def print_cli_usage():
-    print("Usage:")
-    print("appswitch appname [appcmd]")
+def check_dependencies():
+    """Checks if required system tools are installed."""
+    for tool in ["wmctrl", "xdotool"]:
+        try:
+            subprocess.run([tool, "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            logger.error(f"Required tool '{tool}' not found. Please install it (e.g., 'sudo apt install {tool}').")
+            sys.exit(1)
 
 
-if __name__ == '__main__':
-    if (len(sys.argv) < 2 or len(sys.argv) > 3):
-        print_cli_usage()
-        sys.exit(0)
+def main():
+    parser = argparse.ArgumentParser(
+        description="A 'Run or Raise' utility: Switch between windows of an application, cycle through them, or launch it if not running."
+    )
+    parser.add_argument(
+        "window_name",
+        help="The name/class of the window to find (e.g., 'Navigator.firefox')."
+    )
+    parser.add_argument(
+        "launch_cmd",
+        nargs="?",
+        help="Optional command to launch the app if no windows are found."
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose logging."
+    )
+
+    args = parser.parse_args()
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+
+    # Check for wmctrl and xdotool before proceeding
+    check_dependencies()
 
     active_desktop_id = get_active_desktop_id()
+    requested_window_ids = get_window_ids(args.window_name, active_desktop_id)
 
-    requested_window_name = sys.argv[1]
-    requested_window_ids = get_window_ids(requested_window_name, active_desktop_id)
+    if not requested_window_ids:
+        if args.launch_cmd:
+            logger.info(f"No windows found for '{args.window_name}'. Launching: {args.launch_cmd}")
+            try:
+                # Use Popen to launch without waiting for it to exit
+                subprocess.Popen(args.launch_cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as e:
+                logger.error(f"Failed to launch command: {e}")
+                sys.exit(1)
+            sys.exit(0)
+        else:
+            logger.warning(f"No windows found matching '{args.window_name}' and no launch command provided.")
+            sys.exit(0)
 
-    # app is not open, so run command if given
-    if requested_window_ids is None and (len(sys.argv) == 3):
-        completed = subprocess.run(
-            [sys.argv[2]],
-            stdout=subprocess.PIPE,
-            universal_newlines=True)
-        sys.exit()
-
-    if(len(requested_window_ids) == 1):
+    if len(requested_window_ids) == 1:
         target_id = requested_window_ids[0]
-        print("Only one ID found: " + target_id)
     else:
         target_id = choose_window_id(requested_window_ids)
-        print("Found " + str(len(requested_window_ids)) + " IDs. Target: " + target_id)
+        logger.debug(f"Multiple windows found, selected: {target_id}")
 
-    print("Now switching to winid " + target_id)
-    completed = subprocess.run(
-        ["wmctrl", "-i", "-a", target_id],
-        stdout=subprocess.PIPE,
-        universal_newlines=True)
-    # returnCode = completed.returncode  # TODO: Handle errors
-    windowsStdOut = completed.stdout
-    print(windowsStdOut)
+    logger.info(f"Switching to window: {target_id}")
+    try:
+        subprocess.run(
+            ["wmctrl", "-i", "-a", target_id],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to switch to window {target_id}: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
