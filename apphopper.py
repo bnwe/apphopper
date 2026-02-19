@@ -113,6 +113,40 @@ def get_active_desktop_id() -> str:
     sys.exit(1)
 
 
+def list_windows_on_desktop(desktop_id: str) -> List[tuple]:
+    """
+    Returns all windows on the specified desktop with their class and title.
+
+    Args:
+        desktop_id: The ID of the desktop to list windows on.
+
+    Returns:
+        List of (window_id, window_class, window_title) tuples.
+    """
+    try:
+        completed = subprocess.run(
+            ["wmctrl", "-l", "-x"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=True
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to list windows: {e}")
+        return []
+
+    # Format: ID  Desktop  Class  Client  Title (title can contain spaces)
+    window_line_regex = re.compile(r"^(0x[\da-fA-F]+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$")
+    result = []
+    for line in completed.stdout.splitlines():
+        match = window_line_regex.match(line)
+        if match:
+            win_id, win_desktop, win_class, _client, win_title = match.groups()
+            if win_desktop == desktop_id:
+                result.append((win_id, win_class, win_title.strip()))
+    return result
+
+
 def get_window_ids(window_name: str, desktop_id: str) -> List[str]:
     """
     Returns the IDs of all windows matching the name on the specified desktop.
@@ -167,12 +201,18 @@ def main():
     )
     parser.add_argument(
         "window_name",
+        nargs="?",
         help="The name/class of the window to find (e.g., 'Navigator.firefox')."
     )
     parser.add_argument(
         "launch_cmd",
         nargs="?",
         help="Optional command to launch the app if no windows are found."
+    )
+    parser.add_argument(
+        "-l", "--list",
+        action="store_true",
+        help="List all windows on the current desktop with their window classes (for discovering window names)."
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -189,6 +229,21 @@ def main():
     check_dependencies()
 
     active_desktop_id = get_active_desktop_id()
+
+    if args.list:
+        windows = list_windows_on_desktop(active_desktop_id)
+        if not windows:
+            logger.info("No windows found on the current desktop.")
+        else:
+            # Use fixed-width columns for readability
+            max_class = max(len(w[1]) for w in windows) if windows else 0
+            max_class = max(max_class, len("Window class"))
+            for win_id, win_class, win_title in windows:
+                print(f"{win_class:<{max_class}}  {win_title}")
+        sys.exit(0)
+
+    if not args.window_name:
+        parser.error("window_name is required when not using --list")
     requested_window_ids = get_window_ids(args.window_name, active_desktop_id)
 
     if not requested_window_ids:

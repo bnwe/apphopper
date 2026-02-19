@@ -42,19 +42,25 @@ Use `~/.zshrc` instead of `~/.bashrc` if you use zsh. Then run `source ~/.bashrc
 ### Command Line
 
 ```bash
-apphopper <window_class> [launch_command] [-v]
+apphopper [--list] <window_class> [launch_command] [-v]
 ```
 
+- `-l`, `--list`: List all windows on the current desktop with their window classes (for discovering window names).
 - `window_class`: The class of the window to find (e.g., `Navigator.firefox`, `code.Code`).
 - `launch_command`: (Optional) The command to run if no windows are found.
 - `-v`, `--verbose`: Enable verbose logging for debugging.
 
 ### Finding the Window Class
 
-To find the correct window class to use:
-1. Open the application you want to target.
-2. Run `wmctrl -l -x` in your terminal.
-3. Look for your application in the list. The third column contains the class name (e.g., `Navigator.firefox`).
+To find the correct window class to use, run apphopper in list mode:
+
+```bash
+apphopper --list
+```
+
+This prints all windows on the current desktop with their window classes (e.g., `Navigator.firefox`, `cursor.Cursor`). Use the class name in the first column when setting up your apphopper shortcuts.
+
+Alternatively, you can run `wmctrl -l -x` directly and look at the third column.
 
 ### Setting up a Keyboard Shortcut
 
