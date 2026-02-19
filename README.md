@@ -27,6 +27,16 @@ chmod +x apphopper.py
 
 You can then move it to a directory in your PATH, such as `~/bin` or `/usr/local/bin`.
 
+### Adding apphopper.py to your PATH
+
+To run `apphopper` from anywhere without moving the script, add its directory to your PATH. From the directory containing `apphopper.py`, run:
+
+```bash
+echo 'export PATH="$PATH:'$(pwd)'"' >> ~/.bashrc
+```
+
+Use `~/.zshrc` instead of `~/.bashrc` if you use zsh. Then run `source ~/.bashrc` (or `source ~/.zshrc`) or open a new terminal.
+
 ## Usage
 
 ### Command Line
